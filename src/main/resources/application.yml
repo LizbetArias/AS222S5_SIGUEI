@@ -1,0 +1,56 @@
+server:
+  port: ${PORT:8090}
+
+spring:
+  application:
+    name: user-service
+
+  r2dbc:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    pool:
+      enabled: true
+      max-size: 10
+      initial-size: 2
+      max-idle-time: 30s
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+  codec:
+    max-in-memory-size: 10MB
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+          jwk-set-uri: ${JWT_JWK_SET_URI}
+
+  feign:
+    client:
+      config:
+        default:
+          connectTimeout: 5000
+          readTimeout: 5000
+          loggerLevel: BASIC
+
+firebase:
+  credentials: ${FIREBASE_CREDENTIALS}
+
+logging:
+  level:
+    pe.edu.vallegrande.user_service: DEBUG
+    io.r2dbc: DEBUG
+    org.springframework.web.cors: DEBUG
+    org.springframework.security.web.server: DEBUG
