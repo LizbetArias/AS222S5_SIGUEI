@@ -1,0 +1,125 @@
+stages:
+  - test
+  - sonar
+  - security
+
+# ✅ VARIABLES GLOBALES
+variables:
+  MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version"
+  MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository"
+
+  # 🔐 SonarCloud
+  SONAR_HOST_URL: "https://sonarcloud.io"
+  SONAR_TOKEN: "$TOKEN_SONAR"
+  SONAR_PROJECT_KEY: "lizbetariastinco_vg-ms-report-core"
+  SONAR_ORGANIZATION: "lizbetariastinco"
+
+
+  # 🔧 Variables necesarias para Spring Boot (.env simulado)
+  PORT: "8088"
+  DB_URL: "r2dbc:postgresql://aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+  DB_USERNAME: "postgres.mpuxwttoxnhmkkgwhsnl"
+  DB_PASSWORD: "72G8R7jB#jT%xJv"
+  JWT_ISSUER_URI: "https://securetoken.google.com/security-prs1"
+  JWT_JWK_SET_URI: "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+  FIREBASE_API_KEY: "AIzaSyAD3fqr_JmccCJUnHbTWt5iu_C3o_84KOc"
+  FIREBASE_TEST_EMAIL: "angel.castilla@vallegrande.edu.pe"
+  FIREBASE_TEST_PASSWORD: "936609401"
+
+# ✅ CACHE optimizado
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .m2/repository/
+    - target/
+
+# 1️⃣ Pruebas unitarias + Jacoco
+unit_tests:
+  stage: test
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - echo "🧪 Ejecutando tests y cobertura Jacoco"
+    - mvn $MAVEN_CLI_OPTS clean verify jacoco:report
+    - echo "📁 Verificando jacoco.xml"
+    - test -f target/site/jacoco/jacoco.xml || (echo "❌ Jacoco XML no encontrado" && exit 1)
+  artifacts:
+    reports:
+      junit: target/surefire-reports/TEST-*.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: target/site/jacoco/jacoco.xml
+    paths:
+      - target/site/jacoco/
+      - target/surefire-reports/
+    expire_in: 1 day
+  coverage: '/Total.*?([0-9]{1,3})%/'
+
+# 2️⃣ Análisis SonarCloud
+sonarqube_scan:
+  stage: sonar
+  image: maven:3.9.6-eclipse-temurin-17
+  dependencies:
+    - unit_tests
+  script:
+    - echo "🔍 Ejecutando SonarCloud"
+    - >
+      mvn $MAVEN_CLI_OPTS sonar:sonar
+      -Dsonar.projectKey=$SONAR_PROJECT_KEY
+      -Dsonar.organization=$SONAR_ORGANIZATION
+      -Dsonar.host.url=$SONAR_HOST_URL
+      -Dsonar.token=$TOKEN_SONAR
+      -Dsonar.projectName=VG-MS-Report-Core
+      -Dsonar.projectVersion=1.0.0
+      -Dsonar.sources=src/main/java
+      -Dsonar.tests=src/test/java
+      -Dsonar.java.binaries=target/classes
+      -Dsonar.java.test.binaries=target/test-classes
+      -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+      -Dsonar.java.coveragePlugin=jacoco
+      -Dsonar.coverage.exclusions="**/ReportCoreServiceApplication.java,**/config/**,**/webclient/**,**/kafka/**"
+
+# 3️⃣ Escaneo de dependencias OWASP
+dependency_check:
+  stage: security
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - |
+      if command -v dependency-check.sh &> /dev/null; then
+        dependency-check.sh --scan . --format "ALL" --out dependency-check-report
+      else
+        echo "⚠️ OWASP Dependency Check no disponible, saltando..."
+      fi
+  artifacts:
+    paths:
+      - dependency-check-report/
+    expire_in: 1 week
+    when: always
+  allow_failure: true
+
+# 4️⃣ Escaneo de vulnerabilidades Trivy
+trivy_scan:
+  stage: security
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  script:
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL --format json --output trivy-report.json .
+    - trivy fs --exit-code 0 --severity HIGH,CRITICAL .
+  artifacts:
+    paths:
+      - trivy-report.json
+    expire_in: 1 week
+  allow_failure: true
+
+# 5️⃣ SpotBugs
+spotbugs_scan:
+  stage: security
+  image: maven:3.9.6-eclipse-temurin-17
+  script:
+    - mvn $MAVEN_CLI_OPTS com.github.spotbugs:spotbugs-maven-plugin:4.8.3.0:spotbugs
+  artifacts:
+    paths:
+      - target/spotbugsXml.xml
+    expire_in: 1 week
+    when: always
+  allow_failure: true

@@ -1,0 +1,31 @@
+server:
+  port: ${PORT:8088}
+
+spring:
+  application:
+    name: report-core-service
+
+  r2dbc:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    pool:
+      enabled: true
+      max-size: 10
+      initial-size: 2
+      max-idle-time: 30s
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI}
+          jwk-set-uri: ${JWT_JWK_SET_URI}
+
+  codec:
+    max-in-memory-size: 50MB
+
+logging:
+  level:
+    root: INFO
+    pe.edu.vallegrande: DEBUG
